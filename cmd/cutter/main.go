@@ -16,15 +16,16 @@ func main() {
 		Short: "DevOps Cutter - Self-Service CLI for DevOps Tasks",
 		Long: `Cutter is a CLI tool that helps developers self-service common DevOps tasks:
 - Create and download database backups
+- Direct database connection and backup
 - Search and export logs
 - Request database access`,
 		Version: version,
 	}
 
-	// PENTING: Tambahkan commands di sini
 	rootCmd.AddCommand(commands.NewLoginCmd())
 	rootCmd.AddCommand(commands.NewBackupCmd())
 	rootCmd.AddCommand(commands.NewConfigCmd())
+	rootCmd.AddCommand(commands.NewDBCmd()) // ← New command
 
 	rootCmd.SetVersionTemplate(`{{printf "cutter version %s\n" .Version}}`)
 
