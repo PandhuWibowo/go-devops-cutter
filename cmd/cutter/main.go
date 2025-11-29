@@ -22,7 +22,6 @@ func main() {
 		Version: version,
 	}
 
-	rootCmd.AddCommand(commands.NewConfigCmd())
 	rootCmd.AddCommand(commands.NewDBCmd())
 
 	rootCmd.SetVersionTemplate(`{{printf "cutter version %s\n" .Version}}`)

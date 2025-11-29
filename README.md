@@ -66,11 +66,8 @@ Go-Devops-Cutter is a versatile tool built in Go, designed to streamline and aut
 │   │   ├── backup.go
 │   │   └── routes.go
 │   ├── cli
-│   │   ├── commands
-│   │   │   ├── config.go
-│   │   │   └── db.go
-│   │   └── config
-│   │       └── config.go
+│   │   └── commands
+│   │       └── db.go
 │   ├── database
 │   │   ├── database.go
 │   │   └── models.go
@@ -84,10 +81,6 @@ Go-Devops-Cutter is a versatile tool built in Go, designed to streamline and aut
 ## 💻 CLI Commands
 
 ### Available Commands
-
-- **`cutter config`** - Manage CLI configuration
-  - `cutter config list` - Show current configuration
-  - `cutter config path` - Show config file location
 
 - **`cutter db`** - Direct database operations
   - `cutter db backup` - Backup database directly to local machine
@@ -113,9 +106,6 @@ make build-cli
 
 # List backup files
 ./build/cutter db list
-
-# Show configuration
-./build/cutter config list
 
 # Install CLI system-wide
 make install-cli
