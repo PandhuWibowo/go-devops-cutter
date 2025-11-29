@@ -67,10 +67,8 @@ Go-Devops-Cutter is a versatile tool built in Go, designed to streamline and aut
 │   │   └── routes.go
 │   ├── cli
 │   │   ├── commands
-│   │   │   ├── backup.go
 │   │   │   ├── config.go
-│   │   │   ├── db.go
-│   │   │   └── login.go
+│   │   │   └── db.go
 │   │   └── config
 │   │       └── config.go
 │   ├── database
@@ -81,6 +79,47 @@ Go-Devops-Cutter is a versatile tool built in Go, designed to streamline and aut
 └── pkg
     └── client
         └── client.go
+```
+
+## 💻 CLI Commands
+
+### Available Commands
+
+- **`cutter config`** - Manage CLI configuration
+  - `cutter config list` - Show current configuration
+  - `cutter config path` - Show config file location
+
+- **`cutter db`** - Direct database operations
+  - `cutter db backup` - Backup database directly to local machine
+    - Supports PostgreSQL and MySQL
+    - Auto-compresses with gzip
+    - Can use SSH jump host
+  - `cutter db list` - List backup files in current directory
+
+### CLI Usage Examples
+
+```bash
+# Build the CLI
+make build-cli
+
+# Direct PostgreSQL backup
+./build/cutter db backup --type postgres --host localhost --port 5432 \
+  --username myuser --password mypass --database mydb
+
+# Backup via SSH jump host
+./build/cutter db backup --type postgres --host 10.0.1.10 --port 5432 \
+  --username myuser --password mypass --database mydb \
+  --ssh-jump user@jumphost.com
+
+# List backup files
+./build/cutter db list
+
+# Show configuration
+./build/cutter config list
+
+# Install CLI system-wide
+make install-cli
+cutter --help
 ```
 
 ## 🛠️ Development Setup
