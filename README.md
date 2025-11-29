@@ -169,16 +169,7 @@ curl http://localhost:8080/health
 
 ## 🔧 Development
 
-### Available Commands
-
-- **`cutter db`** - Direct database operations
-  - `cutter db backup` - Backup database directly to local machine
-    - Supports PostgreSQL and MySQL
-    - Auto-compresses with gzip
-    - Can use SSH jump host
-  - `cutter db list` - List backup files in current directory
-
-### CLI Usage Examples
+### Make Commands
 
 ```bash
 # Development
@@ -190,21 +181,8 @@ make run-api       # Run API server locally
 make test          # Run tests
 make clean         # Clean build artifacts
 
-# Direct PostgreSQL backup
-./build/cutter db backup --type postgres --host localhost --port 5432 \
-  --username myuser --password mypass --database mydb
-
-# Backup via SSH jump host
-./build/cutter db backup --type postgres --host 10.0.1.10 --port 5432 \
-  --username myuser --password mypass --database mydb \
-  --ssh-jump user@jumphost.com
-
-# List backup files
-./build/cutter db list
-
-# Install CLI system-wide
-make install-cli
-cutter --help
+# Installation
+make install-cli   # Install CLI to /usr/local/bin
 ```
 
 ### Development Setup
