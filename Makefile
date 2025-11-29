@@ -62,6 +62,11 @@ clean:
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html
 
+.PHONY: install-hooks
+install-hooks:
+	@echo "Installing git hooks..."
+	@./scripts/install-hooks.sh
+
 .PHONY: help
 help:
 	@echo "Available targets:"
@@ -70,6 +75,7 @@ help:
 	@echo "  make build-cli             - Build CLI only"
 	@echo "  make build-api             - Build API server only"
 	@echo "  make install-cli           - Install CLI to /usr/local/bin"
+	@echo "  make install-hooks         - Install git hooks for pre-commit and pre-push"
 	@echo "  make run-api               - Run API server locally"
 	@echo "  make test                  - Run tests"
 	@echo "  make test-coverage         - Run tests with coverage summary"
