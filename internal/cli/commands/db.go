@@ -2,6 +2,7 @@ package commands
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,30 +113,62 @@ func runDBBackup(dbType, host string, port int, username, password, database, ou
 }
 
 func backupPostgres(host string, port int, username, password, database, output string, compress bool, sshJump string) error {
-	fmt.Println("Using Docker PostgreSQL client...")
-
 	// Check if Docker is available
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker is not installed. Please install Docker or use --ssh-jump option")
+		return fmt.Errorf("docker is not installed")
 	}
 
+	// Handle SSH jump host if provided
+	var tunnel *sshTunnel
+	var err error
+	originalHost := host
+	originalPort := port
+
+	if sshJump != "" {
+		// Create SSH tunnel
+		tunnel, err = createSSHTunnel(sshJump, host, port)
+		if err != nil {
+			return fmt.Errorf("SSH tunnel failed: %v", err)
+		}
+		defer tunnel.close()
+
+		// Update host and port to use tunnel
+		host = "host.docker.internal"
+		port = tunnel.localPort
+	}
+
+	fmt.Println("Using Docker PostgreSQL client...")
+
 	// Build pg_dump command
-	pgDumpCmd := fmt.Sprintf("PGPASSWORD=%s pg_dump -h %s -p %d -U %s %s",
-		password, host, port, username, database)
+	var pgDumpCmd string
+	var dockerOpts string
+
+	if sshJump != "" {
+		// When using tunnel, connect through localhost via host.docker.internal
+		pgDumpCmd = fmt.Sprintf("PGPASSWORD=%s pg_dump -h host.docker.internal -p %d -U %s %s",
+			password, port, username, database)
+		// Add host mapping for Linux compatibility
+		dockerOpts = "--add-host=host.docker.internal:host-gateway"
+	} else {
+		// Direct connection using host network
+		pgDumpCmd = fmt.Sprintf("PGPASSWORD=%s pg_dump -h %s -p %d -U %s %s",
+			password, originalHost, originalPort, username, database)
+		dockerOpts = "--network host"
+	}
 
 	var cmdStr string
 
 	if compress {
 		// Use Docker to run pg_dump and compress
 		cmdStr = fmt.Sprintf(
-			`docker run --rm --network host postgres:15-alpine sh -c "%s" | gzip > %s`,
-			pgDumpCmd, output,
+			`docker run --rm %s postgres:15-alpine sh -c "%s" | gzip > %s`,
+			dockerOpts, pgDumpCmd, output,
 		)
 	} else {
 		// Use Docker to run pg_dump without compression
 		cmdStr = fmt.Sprintf(
-			`docker run --rm --network host postgres:15-alpine sh -c "%s" > %s`,
-			pgDumpCmd, output,
+			`docker run --rm %s postgres:15-alpine sh -c "%s" > %s`,
+			dockerOpts, pgDumpCmd, output,
 		)
 	}
 
@@ -146,28 +179,60 @@ func backupPostgres(host string, port int, username, password, database, output 
 }
 
 func backupMySQL(host string, port int, username, password, database, output string, compress bool, sshJump string) error {
-	fmt.Println("Using Docker MySQL client...")
-
 	// Check if Docker is available
 	if _, err := exec.LookPath("docker"); err != nil {
-		return fmt.Errorf("docker is not installed. Please install Docker or use --ssh-jump option")
+		return fmt.Errorf("docker is not installed")
 	}
 
+	// Handle SSH jump host if provided
+	var tunnel *sshTunnel
+	var err error
+	originalHost := host
+	originalPort := port
+
+	if sshJump != "" {
+		// Create SSH tunnel
+		tunnel, err = createSSHTunnel(sshJump, host, port)
+		if err != nil {
+			return fmt.Errorf("SSH tunnel failed: %v", err)
+		}
+		defer tunnel.close()
+
+		// Update host and port to use tunnel
+		host = "host.docker.internal"
+		port = tunnel.localPort
+	}
+
+	fmt.Println("Using Docker MySQL client...")
+
 	// Build mysqldump command
-	mysqldumpCmd := fmt.Sprintf("mysqldump -h %s -P %d -u %s -p%s %s",
-		host, port, username, password, database)
+	var mysqldumpCmd string
+	var dockerOpts string
+
+	if sshJump != "" {
+		// When using tunnel, connect through localhost via host.docker.internal
+		mysqldumpCmd = fmt.Sprintf("mysqldump -h host.docker.internal -P %d -u %s -p%s %s",
+			port, username, password, database)
+		// Add host mapping for Linux compatibility
+		dockerOpts = "--add-host=host.docker.internal:host-gateway"
+	} else {
+		// Direct connection using host network
+		mysqldumpCmd = fmt.Sprintf("mysqldump -h %s -P %d -u %s -p%s %s",
+			originalHost, originalPort, username, password, database)
+		dockerOpts = "--network host"
+	}
 
 	var cmdStr string
 
 	if compress {
 		cmdStr = fmt.Sprintf(
-			`docker run --rm --network host mysql:8 sh -c "%s" | gzip > %s`,
-			mysqldumpCmd, output,
+			`docker run --rm %s mysql:8 sh -c "%s" | gzip > %s`,
+			dockerOpts, mysqldumpCmd, output,
 		)
 	} else {
 		cmdStr = fmt.Sprintf(
-			`docker run --rm --network host mysql:8 sh -c "%s" > %s`,
-			mysqldumpCmd, output,
+			`docker run --rm %s mysql:8 sh -c "%s" > %s`,
+			dockerOpts, mysqldumpCmd, output,
 		)
 	}
 
@@ -197,4 +262,89 @@ func newDBListCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// sshTunnel represents an active SSH tunnel
+type sshTunnel struct {
+	cmd       *exec.Cmd
+	localPort int
+}
+
+// findAvailablePort finds an available local port
+func findAvailablePort() (int, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
+	}
+	defer listener.Close()
+
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
+
+// createSSHTunnel creates an SSH tunnel to the database through a jump host
+func createSSHTunnel(sshJump, dbHost string, dbPort int) (*sshTunnel, error) {
+	// Validate SSH jump host format (user@host or user@host:port)
+	if sshJump == "" {
+		return nil, fmt.Errorf("SSH jump host cannot be empty")
+	}
+
+	// Find available local port
+	localPort, err := findAvailablePort()
+	if err != nil {
+		return nil, fmt.Errorf("failed to find available port: %v", err)
+	}
+
+	// Build SSH tunnel command
+	// Format: ssh -f -N -L local_port:db_host:db_port user@jumphost
+	tunnelSpec := fmt.Sprintf("%d:%s:%d", localPort, dbHost, dbPort)
+
+	fmt.Printf("Creating SSH tunnel through %s...\n", sshJump)
+	fmt.Printf("  Local port %d -> %s:%d\n", localPort, dbHost, dbPort)
+
+	cmd := exec.Command("ssh",
+		"-f",                             // Run in background
+		"-N",                             // Don't execute remote command
+		"-o", "ExitOnForwardFailure=yes", // Exit if tunnel fails
+		"-o", "StrictHostKeyChecking=no", // Don't prompt for host key
+		"-L", tunnelSpec, // Local port forwarding
+		sshJump, // Jump host
+	)
+
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start SSH tunnel: %v", err)
+	}
+
+	// Wait a moment for tunnel to establish
+	time.Sleep(2 * time.Second)
+
+	tunnel := &sshTunnel{
+		cmd:       cmd,
+		localPort: localPort,
+	}
+
+	fmt.Println("✓ SSH tunnel established")
+
+	return tunnel, nil
+}
+
+// close terminates the SSH tunnel
+func (t *sshTunnel) close() error {
+	if t.cmd == nil || t.cmd.Process == nil {
+		return nil
+	}
+
+	fmt.Println("Closing SSH tunnel...")
+
+	// Kill the SSH process
+	if err := t.cmd.Process.Kill(); err != nil {
+		return fmt.Errorf("failed to kill SSH tunnel: %v", err)
+	}
+
+	// Wait for process to exit
+	_ = t.cmd.Wait()
+
+	return nil
 }

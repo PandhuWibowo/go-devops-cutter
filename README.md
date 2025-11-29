@@ -3,6 +3,8 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Go Version](https://img.shields.io/badge/Go-1.24-blue)
 ![Version](https://img.shields.io/badge/version-0.1.0-orange)
+![CI](https://github.com/PandhuWibowo/go-devops-cutter/workflows/CI/badge.svg)
+![PR Tests](https://github.com/PandhuWibowo/go-devops-cutter/workflows/PR%20Tests/badge.svg)
 
 ## 📝 Description
 
@@ -14,6 +16,7 @@ Perfect for DevOps engineers who need quick, reliable database backups without i
 
 - 🗄️ **Database Backup** - Backup PostgreSQL and MySQL databases to local machine
 - 🐳 **Docker-based Clients** - No need to install `pg_dump` or `mysqldump` locally
+- 🔒 **SSH Jump Host Support** - Secure access to databases behind firewalls via SSH tunneling
 - 📦 **Auto Compression** - Built-in gzip compression for backups
 - 📋 **Backup Listing** - List backup files in current directory
 - ⚡ **Fast & Lightweight** - Single binary, minimal dependencies
@@ -39,6 +42,7 @@ github.com/gin-gonic/gin          v1.11.0    // HTTP framework (for health API)
 - Go 1.24 or higher
 - Docker (for running database clients)
 - Make
+- SSH client (for SSH jump host feature)
 
 ### Installation
 
@@ -49,6 +53,9 @@ cd go-devops-cutter
 
 # Install dependencies
 make deps
+
+# Install git hooks (recommended for development)
+./scripts/install-hooks.sh
 
 # Build the CLI
 make build-cli
@@ -74,13 +81,14 @@ make install-cli
 - `--password` - Database password (prompted if not provided)
 - `--output` - Output file path (auto-generated if not specified)
 - `--compress` - Compress with gzip (default: true)
+- `--ssh-jump` - SSH jump host for accessing databases behind firewalls (format: user@host)
 
 **`cutter db list`** - List backup files (*.sql*) in current directory
 
 ### Usage Examples
 
 ```bash
-# PostgreSQL backup
+# PostgreSQL backup (direct connection)
 cutter db backup \
   --type postgres \
   --host localhost \
@@ -99,8 +107,49 @@ cutter db backup \
   --database production \
   --output ~/backups/prod_backup.sql.gz
 
+# Backup via SSH jump host (for databases behind firewalls)
+cutter db backup \
+  --type postgres \
+  --host 10.0.1.50 \
+  --port 5432 \
+  --username appuser \
+  --password dbpass \
+  --database internal_db \
+  --ssh-jump devops@jumphost.company.com
+
 # List all backup files
 cutter db list
+```
+
+### SSH Jump Host
+
+The `--ssh-jump` flag enables access to databases behind firewalls or in private networks through an SSH bastion/jump host.
+
+**How it works:**
+1. Creates an SSH tunnel from your local machine to the database through the jump host
+2. Automatically selects an available local port for the tunnel
+3. Runs the database backup through the tunnel
+4. Cleans up the SSH connection after backup completes
+
+**Requirements:**
+- SSH access to the jump host must be configured (SSH key-based authentication recommended)
+- Jump host must have network access to the target database
+- Format: `user@jumphost` or `user@jumphost:port`
+
+**Example:**
+```bash
+# Ensure your SSH key is loaded
+ssh-add ~/.ssh/id_rsa
+
+# Backup database behind firewall
+cutter db backup \
+  --type postgres \
+  --host 10.0.1.50 \
+  --port 5432 \
+  --username dbuser \
+  --password dbpass \
+  --database production \
+  --ssh-jump devops@jumphost.company.com
 ```
 
 ## 🌐 Health Check API
@@ -168,6 +217,36 @@ curl http://localhost:8080/health
 ```
 
 ## 🔧 Development
+
+### Git Hooks
+
+Install git hooks to automatically run tests before commits and pushes:
+
+```bash
+# Install hooks (run once after cloning)
+./scripts/install-hooks.sh
+```
+
+**Pre-commit hook:**
+- Checks code formatting
+- Runs `go vet`
+- Verifies `go.mod` is tidy
+- Runs all tests
+- Builds project
+
+**Pre-push hook:**
+- Runs tests with coverage
+- Builds all binaries
+- Warns about TODO/FIXME comments
+- Confirms push to main branch
+
+**Skip hooks when needed:**
+```bash
+git commit --no-verify  # Skip pre-commit
+git push --no-verify    # Skip pre-push
+```
+
+See [scripts/README.md](scripts/README.md) for more details.
 
 ### Make Commands
 

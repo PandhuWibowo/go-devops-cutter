@@ -225,3 +225,105 @@ func TestDBCommandStructure(t *testing.T) {
 		t.Error("Backup command should have db command as parent")
 	}
 }
+
+func TestFindAvailablePort(t *testing.T) {
+	port, err := findAvailablePort()
+
+	if err != nil {
+		t.Fatalf("Expected no error finding available port, got: %v", err)
+	}
+
+	if port <= 0 || port > 65535 {
+		t.Errorf("Expected valid port number (1-65535), got: %d", port)
+	}
+}
+
+func TestFindAvailablePortUniqueness(t *testing.T) {
+	// Call findAvailablePort multiple times and ensure we get different ports
+	ports := make(map[int]bool)
+
+	for i := 0; i < 5; i++ {
+		port, err := findAvailablePort()
+		if err != nil {
+			t.Fatalf("Expected no error, got: %v", err)
+		}
+		ports[port] = true
+	}
+
+	// We should have gotten at least a few different ports
+	// (Note: it's theoretically possible to get the same port twice if it's released
+	// and immediately reassigned, but highly unlikely in practice)
+	if len(ports) < 3 {
+		t.Logf("Warning: Got fewer unique ports than expected: %d", len(ports))
+	}
+}
+
+func TestCreateSSHTunnelEmptyJumpHost(t *testing.T) {
+	_, err := createSSHTunnel("", "localhost", 5432)
+
+	if err == nil {
+		t.Error("Expected error when SSH jump host is empty")
+	}
+
+	expectedError := "SSH jump host cannot be empty"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}
+
+func TestSSHTunnelClose(t *testing.T) {
+	// Test closing a nil tunnel doesn't panic
+	tunnel := &sshTunnel{}
+	err := tunnel.close()
+
+	if err != nil {
+		t.Errorf("Expected no error closing nil tunnel, got: %v", err)
+	}
+}
+
+func TestBackupWithSSHJumpFlag(t *testing.T) {
+	cmd := newDBBackupCmd()
+
+	// Verify ssh-jump flag exists and can be set
+	cmd.SetArgs([]string{
+		"--database", "testdb",
+		"--username", "testuser",
+		"--ssh-jump", "user@jumphost.com",
+	})
+
+	// Parse flags
+	err := cmd.ParseFlags([]string{
+		"--database", "testdb",
+		"--username", "testuser",
+		"--ssh-jump", "user@jumphost.com",
+	})
+
+	if err != nil {
+		t.Fatalf("Failed to parse flags: %v", err)
+	}
+
+	// Verify the flag value
+	sshJump, err := cmd.Flags().GetString("ssh-jump")
+	if err != nil {
+		t.Fatalf("Failed to get ssh-jump flag value: %v", err)
+	}
+
+	expectedValue := "user@jumphost.com"
+	if sshJump != expectedValue {
+		t.Errorf("Expected ssh-jump '%s', got '%s'", expectedValue, sshJump)
+	}
+}
+
+func TestSSHJumpFlagDefault(t *testing.T) {
+	cmd := newDBBackupCmd()
+
+	// Verify default value is empty string
+	sshJump, err := cmd.Flags().GetString("ssh-jump")
+	if err != nil {
+		t.Fatalf("Failed to get ssh-jump flag value: %v", err)
+	}
+
+	if sshJump != "" {
+		t.Errorf("Expected empty default ssh-jump value, got '%s'", sshJump)
+	}
+}

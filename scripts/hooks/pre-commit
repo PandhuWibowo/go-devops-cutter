@@ -1,0 +1,75 @@
+#!/bin/bash
+#
+# Pre-commit hook for go-devops-cutter
+# Runs before git commit to ensure code quality
+#
+
+set -e
+
+echo "🔍 Running pre-commit checks..."
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if we're in the right directory
+if [ ! -f "go.mod" ]; then
+    echo -e "${RED}Error: Not in project root directory${NC}"
+    exit 1
+fi
+
+# 1. Check code formatting
+echo "📝 Checking code formatting..."
+UNFORMATTED=$(gofmt -s -l . 2>&1)
+if [ -n "$UNFORMATTED" ]; then
+    echo -e "${RED}✗ The following files are not formatted:${NC}"
+    echo "$UNFORMATTED"
+    echo -e "${YELLOW}Run: gofmt -s -w .${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Code formatting passed${NC}"
+
+# 2. Run go vet
+echo "🔍 Running go vet..."
+if ! go vet ./... 2>&1; then
+    echo -e "${RED}✗ go vet failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ go vet passed${NC}"
+
+# 3. Check go.mod and go.sum are tidy
+echo "📦 Checking go.mod and go.sum..."
+cp go.mod go.mod.backup
+cp go.sum go.sum.backup
+go mod tidy
+if ! diff -q go.mod go.mod.backup > /dev/null || ! diff -q go.sum go.sum.backup > /dev/null; then
+    echo -e "${RED}✗ go.mod or go.sum is not tidy${NC}"
+    echo -e "${YELLOW}Run: go mod tidy${NC}"
+    rm go.mod.backup go.sum.backup
+    exit 1
+fi
+rm go.mod.backup go.sum.backup
+echo -e "${GREEN}✓ go.mod and go.sum are tidy${NC}"
+
+# 4. Run tests
+echo "🧪 Running unit tests..."
+if ! make test; then
+    echo -e "${RED}✗ Tests failed${NC}"
+    echo -e "${YELLOW}Fix the failing tests before committing${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ All tests passed${NC}"
+
+# 5. Run build to ensure it compiles
+echo "🔨 Building project..."
+if ! make build > /dev/null 2>&1; then
+    echo -e "${RED}✗ Build failed${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Build successful${NC}"
+
+echo -e "${GREEN}✅ All pre-commit checks passed!${NC}"
+echo ""
+exit 0
