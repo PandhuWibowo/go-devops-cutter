@@ -6,34 +6,30 @@
 
 ## 📝 Description
 
-Go-Devops-Cutter is a lightweight, stateless DevOps toolkit built in Go that streamlines database backup operations. It provides a simple, reliable way to backup PostgreSQL and MySQL databases directly to your local machine using Docker-based database clients.
+Go-Devops-Cutter is a lightweight CLI tool built in Go for backing up PostgreSQL and MySQL databases to your local machine. It uses Docker-based database clients, so you don't need to install database tools locally.
 
-Perfect for DevOps engineers who need quick, reliable database backup solutions without installing database clients, managing state, or dealing with complex orchestration tools.
+Perfect for DevOps engineers who need quick, reliable database backups without installing database clients or managing complex tooling.
 
 ## ✨ Features
 
-- 🗄️ **Direct Database Backup** - Backup PostgreSQL and MySQL databases to local machine
-- 🐳 **Docker-based Clients** - No need to install database clients locally
-- 🔒 **SSH Jump Host Support** - Secure access to databases behind firewalls
+- 🗄️ **Database Backup** - Backup PostgreSQL and MySQL databases to local machine
+- 🐳 **Docker-based Clients** - No need to install `pg_dump` or `mysqldump` locally
 - 📦 **Auto Compression** - Built-in gzip compression for backups
-- 📋 **Backup Management** - List and track backup files
-- ⚡ **Fast & Lightweight** - Single binary, no external dependencies
+- 📋 **Backup Listing** - List backup files in current directory
+- ⚡ **Fast & Lightweight** - Single binary, minimal dependencies
 - 🛠️ **Simple CLI** - Easy to use command-line interface
-- 🚫 **Stateless Architecture** - No database required, no state management
-- 🏥 **Health Check API** - Simple HTTP health endpoint for monitoring
 
 ## 🛠️ Tech Stack
 
 - **Language**: Go 1.24
 - **CLI Framework**: Cobra
-- **Web Framework**: Gin (for API server)
 - **Containerization**: Docker (for database clients)
 
 ## 📦 Key Dependencies
 
 ```go
 github.com/spf13/cobra            v1.10.1    // CLI framework
-github.com/gin-gonic/gin          v1.10.0    // HTTP web framework
+github.com/gin-gonic/gin          v1.11.0    // HTTP framework (for health API)
 ```
 
 ## 🚀 Quick Start
@@ -41,7 +37,7 @@ github.com/gin-gonic/gin          v1.10.0    // HTTP web framework
 ### Prerequisites
 
 - Go 1.24 or higher
-- Docker (for database backup operations)
+- Docker (for running database clients)
 - Make
 
 ### Installation
@@ -54,12 +50,8 @@ cd go-devops-cutter
 # Install dependencies
 make deps
 
-# Build all binaries (CLI + API server)
-make build
-
-# Or build individually
-make build-cli    # Build CLI only
-make build-api    # Build API server only
+# Build the CLI
+make build-cli
 
 # Install CLI system-wide (optional)
 make install-cli
@@ -67,29 +59,28 @@ make install-cli
 
 ## 💻 CLI Commands
 
-### Available Commands
+### Database Operations
 
-#### Database Operations
+**`cutter db backup`** - Backup database to local machine
 
-**`cutter db backup`** - Backup database directly to local machine
+**Required Flags:**
+- `--database` - Database name
+- `--username` - Database username
 
-**Flags:**
+**Optional Flags:**
 - `--type` - Database type: `postgres` or `mysql` (default: postgres)
 - `--host` - Database host (default: localhost)
-- `--port` - Database port (default: 5432)
-- `--username` - Database username (required)
-- `--password` - Database password
-- `--database` - Database name (required)
+- `--port` - Database port (default: 5432 for postgres, 3306 for mysql)
+- `--password` - Database password (prompted if not provided)
 - `--output` - Output file path (auto-generated if not specified)
 - `--compress` - Compress with gzip (default: true)
-- `--ssh-jump` - SSH jump host (format: user@host)
 
-**`cutter db list`** - List backup files in current directory
+**`cutter db list`** - List backup files (*.sql*) in current directory
 
 ### Usage Examples
 
 ```bash
-# PostgreSQL backup to local machine
+# PostgreSQL backup
 cutter db backup \
   --type postgres \
   --host localhost \
@@ -108,38 +99,29 @@ cutter db backup \
   --database production \
   --output ~/backups/prod_backup.sql.gz
 
-# Backup via SSH jump host (for databases behind firewall)
-cutter db backup \
-  --type postgres \
-  --host 10.0.1.50 \
-  --port 5432 \
-  --username app \
-  --password pass \
-  --database internal_db \
-  --ssh-jump devops@jumphost.company.com
-
 # List all backup files
 cutter db list
 ```
 
-## 🌐 API Server
+## 🌐 Health Check API
 
-The project includes a lightweight, stateless API server for health monitoring.
+The project includes a minimal health check API server for monitoring.
 
 ### Running the API Server
 
 ```bash
-# Run directly
-make run-api
-
-# Or run the binary
+# Build and run
+make build-api
 ./build/devops-cutter-api
+
+# Or run directly
+make run-api
 
 # Custom port (default: 8080)
 PORT=3000 ./build/devops-cutter-api
 ```
 
-### API Endpoints
+### API Endpoint
 
 **GET /health** - Health check endpoint
 
@@ -160,27 +142,29 @@ curl http://localhost:8080/health
 
 ```
 .
-├── LICENSE
-├── Makefile
-├── README.md
-├── go.mod
-├── go.sum
 ├── cmd/
 │   ├── api/
-│   │   └── main.go              # API server entry point
+│   │   ├── main.go              # Health check API server
+│   │   └── main_test.go         # API tests
 │   └── cutter/
 │       └── main.go              # CLI entry point
 ├── internal/
 │   └── cli/
-│       ├── commands/
-│       │   └── db.go            # Database backup commands
-│       └── ui/                  # CLI UI components
+│       └── commands/
+│           ├── db.go            # Database backup commands
+│           └── db_test.go       # Command tests
 ├── pkg/
 │   └── client/
-│       └── client.go            # HTTP client utilities
-└── build/                       # Build artifacts (generated)
-    ├── cutter                   # CLI binary
-    └── devops-cutter-api        # API server binary
+│       ├── client.go            # HTTP client utilities
+│       └── client_test.go       # Client tests
+├── build/                       # Build artifacts (generated)
+│   ├── cutter                   # CLI binary
+│   └── devops-cutter-api        # API binary
+├── Makefile
+├── go.mod
+├── go.sum
+├── LICENSE
+└── README.md
 ```
 
 ## 🔧 Development
@@ -205,13 +189,11 @@ make install-cli   # Install CLI to /usr/local/bin
 
 1. **Install Go 1.24+**
    ```bash
-   # Check your Go version
    go version
    ```
 
 2. **Install Docker**
    ```bash
-   # The CLI uses Docker to run database clients
    docker --version
    ```
 
@@ -222,10 +204,7 @@ make install-cli   # Install CLI to /usr/local/bin
 
 4. **Build and Test**
    ```bash
-   # Build the CLI
    make build-cli
-
-   # Test it out
    ./build/cutter --help
    ./build/cutter db --help
    ```
@@ -241,6 +220,8 @@ go test -v -cover ./...
 
 # Run specific package tests
 go test -v ./internal/cli/commands
+go test -v ./cmd/api
+go test -v ./pkg/client
 ```
 
 ## 🚀 Deployment
@@ -251,7 +232,7 @@ go test -v ./internal/cli/commands
 # Build for production
 make build-cli
 
-# Deploy binary to remote server
+# Deploy to remote server
 scp build/cutter user@server:/usr/local/bin/
 
 # Or install locally
@@ -267,10 +248,10 @@ make build-api
 # Deploy to server
 scp build/devops-cutter-api user@server:/opt/devops-cutter/
 
-# Run with systemd or supervisor
-# Example systemd service:
+# Run with systemd (example)
+# /etc/systemd/system/devops-cutter-api.service:
 # [Unit]
-# Description=DevOps Cutter API
+# Description=DevOps Cutter Health Check API
 #
 # [Service]
 # ExecStart=/opt/devops-cutter/devops-cutter-api
@@ -285,17 +266,16 @@ scp build/devops-cutter-api user@server:/opt/devops-cutter/
 
 Contributions are welcome! Here's how you can help:
 
-1. **Fork** the repository
-2. **Clone** your fork: `git clone https://github.com/PandhuWibowo/go-devops-cutter.git`
-3. **Create** a new branch: `git checkout -b feature/your-feature`
-4. **Make** your changes and add tests
-5. **Test** your changes: `make test`
-6. **Commit** your changes: `git commit -am 'Add some feature'`
-7. **Push** to your branch: `git push origin feature/your-feature`
-8. **Open** a pull request
+1. Fork the repository
+2. Create a new branch: `git checkout -b feature/your-feature`
+3. Make your changes and add tests
+4. Run tests: `make test`
+5. Commit your changes: `git commit -am 'Add feature'`
+6. Push to your branch: `git push origin feature/your-feature`
+7. Open a pull request
 
 Please ensure your code:
-- Follows Go best practices and idioms
+- Follows Go best practices
 - Includes appropriate tests
 - Has clear commit messages
 - Updates documentation as needed
@@ -306,9 +286,9 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) file for 
 
 ## 🙏 Acknowledgments
 
-- [Cobra](https://github.com/spf13/cobra) - Powerful CLI framework for Go
-- [Gin](https://github.com/gin-gonic/gin) - High-performance HTTP web framework
-- [Docker](https://www.docker.com/) - Containerization platform for database clients
+- [Cobra](https://github.com/spf13/cobra) - CLI framework for Go
+- [Gin](https://github.com/gin-gonic/gin) - HTTP web framework
+- [Docker](https://www.docker.com/) - Container platform for database clients
 
 ---
 
