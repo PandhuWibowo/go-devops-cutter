@@ -22,10 +22,8 @@ func main() {
 		Version: version,
 	}
 
-	rootCmd.AddCommand(commands.NewLoginCmd())
-	rootCmd.AddCommand(commands.NewBackupCmd())
 	rootCmd.AddCommand(commands.NewConfigCmd())
-	rootCmd.AddCommand(commands.NewDBCmd()) // ← New command
+	rootCmd.AddCommand(commands.NewDBCmd())
 
 	rootCmd.SetVersionTemplate(`{{printf "cutter version %s\n" .Version}}`)
 
